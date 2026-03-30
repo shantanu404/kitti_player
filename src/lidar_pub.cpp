@@ -3,14 +3,14 @@
 #include <filesystem>
 #include "rclcpp/rclcpp.hpp"
 #include "kitti_player/time_utils.hpp"
-#include "kitti_player/img_utils.hpp"
+#include "kitti_player/pc_utils.hpp"
 
 using namespace std::chrono_literals;
 
-class KITTImageNode : public rclcpp::Node {
+class KITTLidarNode : public rclcpp::Node {
 public:
-    KITTImageNode()
-        : Node("kitti_image_pub_node")
+    KITTLidarNode()
+        : Node("kitti_lidar_pub_node")
     {
         std::string path;
         this->declare_parameter("data_path", "");
@@ -21,7 +21,7 @@ public:
         this->get_parameter("sensor_freq_hz", sensor_freq);
 
         std::string topic;
-        this->declare_parameter("topic", "/kitti/camera/image");
+        this->declare_parameter("topic", "/kitti/velodyne_points");
         this->get_parameter("topic", topic);
 
         this->declare_parameter("frame_id", "base_link");
@@ -46,20 +46,20 @@ public:
             timestamps_.push_back(timestamp);
         }
 
-        for (auto img : dir_iter) {
-            img_files_.push_back(img.path());
+        for (auto pc : dir_iter) {
+            pc_files_.push_back(pc.path());
         }
-        std::sort(std::begin(img_files_), std::end(img_files_));
+        std::sort(std::begin(pc_files_), std::end(pc_files_));
 
-        assert(img_files_.size() == timestamps_.size());
+        assert(pc_files_.size() == timestamps_.size());
 
-        max_img_ = img_files_.size();
-        cur_img_ = 0;
+        max_pc_ = pc_files_.size();
+        cur_pc_ = 0;
 
-        publisher_ = this->create_publisher<sensor_msgs::msg::Image>(topic, 10);
+        publisher_ = this->create_publisher<sensor_msgs::msg::PointCloud2>(topic, 10);
 
         auto period = 1000ms / sensor_freq;
-        timer_ = this->create_wall_timer(period, std::bind(&KITTImageNode::timer_callback, this));
+        timer_ = this->create_wall_timer(period, std::bind(&KITTLidarNode::timer_callback, this));
 
         RCLCPP_INFO(
             this->get_logger(),
@@ -71,42 +71,42 @@ public:
 private:
     void timer_callback()
     {
-        if (cur_img_ >= max_img_) {
+        if (cur_pc_ >= max_pc_) {
             return;
         }
 
-        sensor_msgs::msg::Image img_msg;
-        kitti_utils::read_image(img_files_[cur_img_], img_msg);
-        img_msg.header.stamp = timestamps_[cur_img_];
-        img_msg.header.frame_id = frame_id_;
+        sensor_msgs::msg::PointCloud2 pc_msg;
+        kitti_utils::read_pointcloud(pc_files_[cur_pc_], pc_msg);
+        pc_msg.header.stamp = timestamps_[cur_pc_];
+        pc_msg.header.frame_id = frame_id_;
 
         RCLCPP_INFO(
             this->get_logger(),
             "publishing \"%s\" with timestamp %s",
-            img_files_[cur_img_].c_str(), utc_timestamps_[cur_img_].c_str()
+            pc_files_[cur_pc_].c_str(), utc_timestamps_[cur_pc_].c_str()
         );
 
-        publisher_->publish(img_msg);
-        cur_img_++;
+        publisher_->publish(pc_msg);
+        cur_pc_++;
     }
 
-    size_t max_img_;
-    size_t cur_img_;
+    size_t max_pc_;
+    size_t cur_pc_;
 
     std::string frame_id_;
 
     std::vector<std::string> utc_timestamps_;
     std::vector<builtin_interfaces::msg::Time> timestamps_;
-    std::vector<std::string> img_files_;
+    std::vector<std::string> pc_files_;
 
-    rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr publisher_;
+    rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr publisher_;
     rclcpp::TimerBase::SharedPtr timer_;
 };
 
 int main(int argc, char** argv) {
     rclcpp::init(argc, argv);
-    auto img_pub_node = std::make_shared<KITTImageNode>();
-    rclcpp::spin(img_pub_node);
+    auto lidar_pub_node = std::make_shared<KITTLidarNode>();
+    rclcpp::spin(lidar_pub_node);
     rclcpp::shutdown();
     return 0;
 }
