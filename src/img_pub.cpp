@@ -20,8 +20,13 @@ public:
         this->declare_parameter("sensor_freq_hz", 10.0);
         this->get_parameter("sensor_freq_hz", sensor_freq);
 
+        bool use_compressed;
+        this->declare_parameter("use_compressed", false);
+        this->get_parameter("use_compressed", use_compressed);
+
+        std::string topic_default = use_compressed ? "/kitti/camera/image/compressed" : "/kitti/camera/image";
         std::string topic;
-        this->declare_parameter("topic", "/kitti/camera/image");
+        this->declare_parameter("topic", topic_default);
         this->get_parameter("topic", topic);
 
         this->declare_parameter("frame_id", "base_link");
@@ -55,8 +60,13 @@ public:
 
         max_img_ = img_files_.size();
         cur_img_ = 0;
+        use_compressed_ = use_compressed;
 
-        publisher_ = this->create_publisher<sensor_msgs::msg::Image>(topic, 10);
+        if (use_compressed_) {
+            compressed_publisher_ = this->create_publisher<sensor_msgs::msg::CompressedImage>(topic, 10);
+        } else {
+            image_publisher_ = this->create_publisher<sensor_msgs::msg::Image>(topic, 10);
+        }
 
         auto period = 1000ms / sensor_freq;
         timer_ = this->create_wall_timer(period, std::bind(&KITTImageNode::timer_callback, this));
@@ -75,18 +85,26 @@ private:
             return;
         }
 
-        sensor_msgs::msg::Image img_msg;
-        kitti_utils::read_image(img_files_[cur_img_], img_msg);
-        img_msg.header.stamp = timestamps_[cur_img_];
-        img_msg.header.frame_id = frame_id_;
-
         RCLCPP_INFO(
             this->get_logger(),
             "publishing \"%s\" with timestamp %s",
             img_files_[cur_img_].c_str(), utc_timestamps_[cur_img_].c_str()
         );
 
-        publisher_->publish(img_msg);
+        if (use_compressed_) {
+            sensor_msgs::msg::CompressedImage compressed_msg;
+            kitti_utils::read_image(img_files_[cur_img_], compressed_msg);
+            compressed_msg.header.stamp = timestamps_[cur_img_];
+            compressed_msg.header.frame_id = frame_id_;
+            compressed_publisher_->publish(compressed_msg);
+        } else {
+            sensor_msgs::msg::Image img_msg;
+            kitti_utils::read_image(img_files_[cur_img_], img_msg);
+            img_msg.header.stamp = timestamps_[cur_img_];
+            img_msg.header.frame_id = frame_id_;
+            image_publisher_->publish(img_msg);
+        }
+
         cur_img_++;
     }
 
@@ -99,7 +117,9 @@ private:
     std::vector<builtin_interfaces::msg::Time> timestamps_;
     std::vector<std::string> img_files_;
 
-    rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr publisher_;
+    bool use_compressed_;
+    rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr image_publisher_;
+    rclcpp::Publisher<sensor_msgs::msg::CompressedImage>::SharedPtr compressed_publisher_;
     rclcpp::TimerBase::SharedPtr timer_;
 };
 

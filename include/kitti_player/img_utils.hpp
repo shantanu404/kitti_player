@@ -3,6 +3,7 @@
 #include <string>
 #include <opencv2/opencv.hpp>
 #include <sensor_msgs/msg/image.hpp>
+#include <sensor_msgs/msg/compressed_image.hpp>
 
 namespace kitti_utils {
     std::string mat_type2encoding(int mat_type)
@@ -37,5 +38,22 @@ namespace kitti_utils {
         auto size = frame.step * frame.rows;
         img.data.resize(size);
         std::memcpy(&img.data[0], frame.data, size);
+    }
+
+    void read_image(const std::string& img_path, sensor_msgs::msg::CompressedImage& msg) {
+        std::ifstream file(img_path, std::ios::binary | std::ios::ate);
+        if (!file.is_open()) {
+            throw std::invalid_argument("image file does not exist");
+        }
+
+        std::streamsize size = file.tellg();
+        file.seekg(0, std::ios::beg);
+        msg.data.resize(static_cast<size_t>(size));
+
+        if (!file.read(reinterpret_cast<char*>(msg.data.data()), size)) {
+            throw std::runtime_error("failed to read compressed image file");
+        }
+
+        msg.format = "png";
     }
 };
