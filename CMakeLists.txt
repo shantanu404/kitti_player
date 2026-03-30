@@ -7,12 +7,17 @@ endif()
 
 # find dependencies
 find_package(ament_cmake REQUIRED)
+find_package(OpenCV REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(builtin_interfaces REQUIRED)
 find_package(sensor_msgs REQUIRED)
 
+include_directories(
+  include
+)
+
 add_executable(img_pub src/img_pub.cpp)
-ament_target_dependencies(img_pub rclcpp builtin_interfaces sensor_msgs)
+ament_target_dependencies(img_pub rclcpp builtin_interfaces sensor_msgs OpenCV)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
@@ -25,5 +30,10 @@ if(BUILD_TESTING)
   set(ament_cmake_cpplint_FOUND TRUE)
   ament_lint_auto_find_test_dependencies()
 endif()
+
+install(
+  TARGETS img_pub
+  DESTINATION lib/${PROJECT_NAME}
+)
 
 ament_package()
