@@ -85,7 +85,7 @@ private:
             return;
         }
 
-        RCLCPP_INFO(
+        RCLCPP_DEBUG(
             this->get_logger(),
             "publishing \"%s\" with timestamp %s",
             img_files_[cur_img_].c_str(), utc_timestamps_[cur_img_].c_str()
